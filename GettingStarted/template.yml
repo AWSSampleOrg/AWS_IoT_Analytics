@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: "AWS::Serverless-2016-10-31"
+Description: "IoT Analytics example"
+Parameters:
+  ProjectPrefix:
+    Type: String
+    Default: ""
+
+Resources:
+  Channel:
+    Type: AWS::IoTAnalytics::Channel
+    Properties:
+      ChannelName: !Sub ${ProjectPrefix}channel
+      RetentionPeriod:
+        Unlimited: false
+        NumberOfDays: 10
+
+  Pipeline:
+    Type: AWS::IoTAnalytics::Pipeline
+    Properties:
+      PipelineName: !Sub ${ProjectPrefix}pipeline
+      PipelineActivities:
+        - Channel:
+            Name: ChannelActivity
+            ChannelName: !Sub ${ProjectPrefix}channel
+            Next: FilterActivity
+          Filter:
+            Name: FilterActivity
+            Filter: attribute1 > 50 AND attribute2 > 50
+            Next: DatastoreActivity
+          Datastore:
+            Name: DatastoreActivity
+            DatastoreName: !Sub ${ProjectPrefix}datastore
+
+  Datastore:
+    Type: AWS::IoTAnalytics::Datastore
+    Properties:
+      DatastoreName: !Sub ${ProjectPrefix}datastore
+      RetentionPeriod:
+        Unlimited: false
+        NumberOfDays: 10
+
+  Dataset:
+    DependsOn: Datastore
+    Type: AWS::IoTAnalytics::Dataset
+    Properties:
+      DatasetName: !Sub ${ProjectPrefix}dataset
+      Actions:
+        - ActionName: SqlAction
+          QueryAction:
+            SqlQuery: !Sub select * from ${ProjectPrefix}datastore
+      RetentionPeriod:
+        Unlimited: false
+        NumberOfDays: 10
+      Triggers:
+        - Schedule:
+            # Every five minutes
+            ScheduleExpression: cron(0/5 * * * ? *)
